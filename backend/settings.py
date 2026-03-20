@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "grimoirer-git-master-axwyks-projects.vercel.app",
+    "grimoirer-aes1frbd0-axwyks-projects.vercel.app",
+    "grimoirer.vercel.app",
 ]
 
 # Guild to track for ELO ranking (only members of this guild get rated)
