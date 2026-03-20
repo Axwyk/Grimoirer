@@ -103,7 +103,7 @@ def score_dps(stats: dict, fight_avg: dict) -> float:
     death_score = max(0, 10 - (stats["deaths"] / max(avg_deaths, 0.5)) * 5)
     assist_score = min(10, (stats["assists"] / max(fight_avg.get("assists", 1), 0.5)) * 5)
 
-    return min(10.0, (damage_score * 0.50 + kill_score * 0.90 + death_score * 0.20 + assist_score * 0.15))
+    return min(10.0, (damage_score * 0.50 + kill_score * 0.60 + death_score * 0.20 + assist_score * 0.15))
 
 
 ROLE_SCORERS = {
