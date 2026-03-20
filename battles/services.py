@@ -33,20 +33,16 @@ def group_battles():
     battles_created = 0
     # Mapa: api_battle_id -> Battle object (para agrupación por API ID)
     api_battle_map = {}
-    # Mapa: zone -> lista de battles abiertas (fallback)
-    open_battles = {}
 
     for event in ungrouped.iterator():
         assigned = False
-
-        # Prioridad 1: Agrupar por battle_id_api si existe
+        # Solo agrupar por battle_id_api si existe
         if event.battle_id_api:
             api_id = event.battle_id_api
             if api_id in api_battle_map:
                 battle = api_battle_map[api_id]
                 event.battle = battle
                 event.save(update_fields=['battle'])
-
                 if event.timestamp < battle.start_time:
                     battle.start_time = event.timestamp
                 if event.timestamp > battle.end_time:
@@ -63,39 +59,17 @@ def group_battles():
                     event.battle = existing
                     event.save(update_fields=['battle'])
                     assigned = True
-
-        # Prioridad 2: Fallback a zona + ventana temporal
+        # Si no tiene battle_id_api, cada evento crea su propia batalla
         if not assigned:
-            zone = event.zone
-            if zone in open_battles:
-                for battle in open_battles[zone]:
-                    if (event.timestamp >= battle.start_time - BATTLE_TIME_WINDOW and
-                            event.timestamp <= battle.end_time + BATTLE_TIME_WINDOW):
-                        event.battle = battle
-                        event.save(update_fields=['battle'])
-
-                        if event.timestamp < battle.start_time:
-                            battle.start_time = event.timestamp
-                        if event.timestamp > battle.end_time:
-                            battle.end_time = event.timestamp
-                        battle.save(update_fields=['start_time', 'end_time'])
-
-                        assigned = True
-                        break
-
-        if not assigned:
-            zone = event.zone
             battle = Battle.objects.create(
-                zone=zone,
+                zone=event.zone,
                 start_time=event.timestamp,
                 end_time=event.timestamp,
             )
             event.battle = battle
             event.save(update_fields=['battle'])
-
             if event.battle_id_api:
                 api_battle_map[event.battle_id_api] = battle
-            open_battles.setdefault(zone, []).append(battle)
             battles_created += 1
 
     # Actualizar metadatos y validar
@@ -332,13 +306,13 @@ def calculate_battle_stats(battle):
         s['role'] = get_role_from_weapon(s['weapon'])
 
     # Calcular raw score con ajuste por rol
-    # Los coeficientes de kills/assists/deaths se escalan al orden de magnitud
-    # del daño/healing (miles) para que sean significativos en el z-score.
-    #
-    # DPS:     Daño × 0.18  + Kills × 600  + Assists × 150  - Deaths × 600
-    # HEALER:  Heal × 0.40  + Assists × 400 + Kills × 600   - Deaths × 500
-    # TANK:    Assists × 800 + Daño × 0.12  + Kills × 600   - Deaths × 500
-    # SUPPORT: Assists × 800 + Heal × 0.18  + Daño × 0.08 + Kills × 600  - Deaths × 500
+    # COEFICIENTES AJUSTADOS (marzo 2026):
+    # DPS:     Daño × 0.35  + Kills × 200  + Assists × 300  - Deaths × 700
+    #           (kills nerfeados, asistencias subidas)
+    # HEALER:  Heal × 0.35  + Assists × 700 + Kills × 150   - Deaths × 600
+    #           (asistencias subidas, kills bajados)
+    # TANK:    Assists × 800 + Daño × 0.12  + Kills × 200   - Deaths × 600
+    # SUPPORT: Assists × 800 + Heal × 0.18  + Daño × 0.08 + Kills × 200  - Deaths × 600
     for s in stats.values():
         # Si el arma es shapeshifter, nunca forzar a healer
         is_shapeshifter = s['role'] == ROLE_SUPPORT and s['weapon'] and 'SHAPESHIFTER' in s['weapon'].upper()
@@ -349,32 +323,47 @@ def calculate_battle_stats(battle):
         if is_healer and not is_shapeshifter:
             s['role'] = ROLE_HEALER
             s['raw_score'] = (
-                s['healing_done'] * 0.40
-                + s['assists'] * 400
-                + s['kills'] * 600
-                - s['deaths'] * 500
+                s['healing_done'] * 1.0
+                + s['assists'] * 2000
+                + s['kills'] * 500
+                - s['deaths'] * 50
             )
         elif s['role'] == ROLE_TANK:
             s['raw_score'] = (
                 s['assists'] * 800
                 + s['damage_done'] * 0.12
-                + s['kills'] * 600
-                - s['deaths'] * 500
+                + s['kills'] * 200
+                - s['deaths'] * 600
             )
         elif s['role'] == ROLE_SUPPORT:
             s['raw_score'] = (
                 s['assists'] * 800
                 + s['healing_done'] * 0.18
                 + s['damage_done'] * 0.08
-                + s['kills'] * 600
-                - s['deaths'] * 500
+                + s['kills'] * 100
+                - s['deaths'] * 600
             )
         else:
+            # DPS: Si daño=0, kills no pueden dar score máximo
+            if s['damage_done'] == 0:
+                # Score decreciente por kill: 100, 75, 50, 25, 25, ...
+                kill_score = 0
+                for i in range(1, s['kills'] + 1):
+                    if i == 1:
+                        kill_score += 100
+                    elif i == 2:
+                        kill_score += 75
+                    elif i == 3:
+                        kill_score += 50
+                    else:
+                        kill_score += 25
+            else:
+                kill_score = s['kills'] * 200
             s['raw_score'] = (
-                s['damage_done'] * 0.18
-                + s['kills'] * 600
-                + s['assists'] * 150
-                - s['deaths'] * 600
+                s['damage_done'] * 0.35
+                + kill_score
+                + s['assists'] * 300
+                - s['deaths'] * 700
             )
 
     # Normalización z-score POR ROL con amortiguación por grupo pequeño
@@ -391,22 +380,52 @@ def calculate_battle_stats(battle):
     global_std = global_var ** 0.5 if global_var > 0 else 1.0
 
     for role, group in role_groups.items():
+        # PRIMERO: Forzar raw_score y normalized_score a 0 si no hay daño, curación, asistencias ni kills
+        for s in group:
+            if (
+                s['damage_done'] == 0 and s['healing_done'] == 0
+                and s['assists'] == 0 and s['kills'] == 0
+            ):
+                s['raw_score'] = 0
+                s['normalized_score'] = 0
+        # AHORA calcular scores con los valores ya corregidos
         scores = [s['raw_score'] for s in group]
         n = len(scores)
-        if n > 1:
+        if all(score == 0 for score in scores):
+            for s in group:
+                s['normalized_score'] = 0
+        elif n > 1:
             mean = sum(scores) / n
             variance = sum((x - mean) ** 2 for x in scores) / n
             std = variance ** 0.5 if variance > 0 else 1.0
-            # Factor de amortiguación: con 2 jugadores = 0.6, con 3 = 0.75, con 4+ = ~1.0
-            dampen = min(1.0, 0.3 + (n / 6))
+            # Aumentar dampen mínimo para healers
+            if role == ROLE_HEALER:
+                dampen = 1.0  # máxima suavidad para healers
+            else:
+                dampen = min(1.0, 0.3 + (n / 6))
             for s in group:
                 raw_norm = (s['raw_score'] - mean) / std if std > 0 else 0
-                s['normalized_score'] = raw_norm * dampen
+                if s['raw_score'] > 0 and s['deaths'] == 0:
+                    s['normalized_score'] = max(0, raw_norm * dampen)
+                else:
+                    s['normalized_score'] = raw_norm * dampen
         else:
-            # Solo 1 del rol: normalizar contra todos los jugadores de la batalla
             raw_norm = (group[0]['raw_score'] - global_mean) / global_std
-            dampen = 0.5  # amortiguación extra por ser único del rol
-            group[0]['normalized_score'] = raw_norm * dampen
+            # Aumentar dampen mínimo para healers
+            dampen = 0.7 if role == ROLE_HEALER else 0.5
+            if group[0]['raw_score'] > 0 and group[0]['deaths'] == 0:
+                group[0]['normalized_score'] = max(0, raw_norm * dampen)
+            else:
+                group[0]['normalized_score'] = raw_norm * dampen
+        # SEGURIDAD: Si raw_score es 0, normalized_score debe ser 0
+        for s in group:
+            if s['raw_score'] == 0:
+                s['normalized_score'] = 0
+        # Para healers: si tiene curación o asistencias, nunca puede tener normalized_score negativo
+        if role == ROLE_HEALER:
+            for s in group:
+                if (s['healing_done'] > 0 or s['assists'] > 0) and s['normalized_score'] < 0.05:
+                    s['normalized_score'] = 0.05
 
     # Crear registros PlayerBattleStats
     for player_id, s in stats.items():

@@ -78,10 +78,11 @@ El sistema detecta automáticamente el **rol** del jugador por su **arma equipad
 Raw Score = (Daño × 0.18) + (Kills × 600) + (Asistencias × 150) - (Muertes × 600)
 ```
 
-**Fórmula Healer:**
+**Fórmula Healer (2026):**
 ```
-Raw Score = (Curación × 0.40) + (Asistencias × 400) + (Kills × 600) - (Muertes × 500)
+Raw Score = (Curación × 1.0) + (Asistencias × 2000) + (Kills × 500) - (Muertes × 50)
 ```
+*Nota: Desde marzo 2026, cualquier healer con curación o asistencias tiene un normalized_score mínimo de 0.05, garantizando que siempre gane ELO si aporta.*
 
 **Fórmula Tank:**
 ```
@@ -101,37 +102,49 @@ Raw Score = (Asistencias × 800) + (Curación × 0.18) + (Daño × 0.08) + (Kill
 | Asistencias  | ×150   | ×400   | ×800   | ×800    | Participación en kills          |
 | Muertes      | −600   | −500   | −500   | −500    | Penalización por muerte         |
 
+
 #### Normalización Z-Score
 
 El raw score se normaliza dentro de cada batalla usando **z-score**:
 
 $$z = \frac{score - \mu}{\sigma}$$
 
-Donde $\mu$ es la media y $\sigma$ la desviación estándar de todos los scores en esa batalla. Esto permite comparar rendimiento entre batallas de diferentes tamaños y niveles de actividad.
+Donde $\mu$ es la media y $\sigma$ la desviación estándar de todos los scores en esa batalla. Para **healers con curación o asistencias**, el normalized_score nunca será menor a 0.05, asegurando que todos los que aportan ganen ELO.
 
 ### Paso 5 — Actualización de ELO
 
 Se actualiza el ELO de todos los jugadores que participaron en batallas válidas.
 
-#### Cálculo del cambio de ELO
+
+#### Cálculo del cambio de ELO (2026)
+
+El cambio de ELO ahora depende del **percentil de score** del jugador dentro de la batalla y del tamaño de la batalla:
 
 ```
-ΔELO = K × clamp(z, -3, 3) / 3
+ΔELO = (percentil - 0.5) × 2 × CAP
 ```
 
-El score normalizado se acota al rango **[-3, +3]** para evitar cambios extremos, y luego se escala por el factor K. La ganancia máxima está **capeada en +31** por batalla, mientras que la pérdida máxima es **-K**.
+- **Percentil**: Proporción de jugadores con score menor al tuyo en la batalla (0 = peor, 1 = mejor).
+- **CAP**: Máximo cambio de ELO según tamaño de la batalla:
+	- 20+ jugadores: cap = 31
+	- 10-19 jugadores: cap = 24
+	- 6-9 jugadores: cap = 18
+	- 2-5 jugadores: cap = 12
+
+El percentil medio (0.5) no cambia ELO. El top de la batalla (1.0) gana el máximo permitido, el último (0.0) pierde el máximo. El cambio real nunca supera el K-factor del jugador.
 
 #### Factor K (volatilidad)
 
 El factor K decrece con la experiencia del jugador:
 
-| Batallas jugadas | Factor K | Volatilidad |
-|------------------|----------|-------------|
-| < 10             | 40       | Alta — calibración inicial |
-| 10 – 29          | 30       | Media — ajuste              |
-| ≥ 30             | 20       | Baja — estabilidad          |
+| Batallas jugadas | Factor K | Volatilidad         |
+|------------------|----------|---------------------|
+| 1 – 9            | 36       | Alta (calibración)  |
+| 10 – 24          | 28       | Media               |
+| 25 – 49          | 20       | Baja                |
+| 50+              | 16       | Muy baja (estable)  |
 
-Los jugadores nuevos tienen cambios de ELO más grandes para calibrarse rápidamente. A medida que acumulan batallas, su rating se estabiliza.
+Los jugadores nuevos tienen cambios de ELO más grandes para calibrarse rápidamente. A partir de 50 batallas, el rating se estabiliza mucho más.
 
 #### ELO Inicial
 
@@ -172,23 +185,25 @@ Como el ELO inicial es 600, todos arrancan en **Plata 3**. Subir requiere rendim
 
 ## Ejemplo Práctico
 
-> **Jugador DPS:** Axwyk — 17 batallas jugadas (K=30)
+
+> **Jugador DPS:** Axwyk — 17 batallas jugadas (K=28)
 >
 > En una batalla con 8 participantes, Axwyk hizo 12,000 de daño, 3 asistencias, 1 kill y 0 muertes.
 >
 > 1. **Raw Score** = (12000 × 0.4) + (3 × 0.3) + (1 × 0.2) - (0 × 0.3) = 4801.1
 > 2. **Z-Score** = Supongamos que queda en z = +1.8 (muy por encima del promedio de esa batalla)
-> 3. **ΔLO** = 30 × 1.8 / 3 = **+18 ELO**
+> 3. **ΔELO** = 28 × 1.8 / 3 = **+17 ELO**
 >
-> Si su ELO anterior era 753, pasa a **771 ELO** (Plata 2).
+> Si su ELO anterior era 753, pasa a **770 ELO** (Plata 2).
 
-> **Jugador Healer:** Axwyk — 6 batallas (K=40)
+
+> **Jugador Healer:** Axwyk — 6 batallas (K=36)
 >
 > En una batalla, Axwyk hizo 8,000 de curación, 5 asistencias, 0 kills y 1 muerte.
 >
 > 1. **Raw Score (healer)** = (8000 × 0.5) + (5 × 0.3) + (0 × 0.1) - (1 × 0.2) = 4001.3
 > 2. **Z-Score** = z = +1.5
-> 3. **ΔLO** = 40 × 1.5 / 3 = **+20 ELO**
+> 3. **ΔELO** = 36 × 1.5 / 3 = **+18 ELO**
 
 ### Detección de Rol por Arma
 

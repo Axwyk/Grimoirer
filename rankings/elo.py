@@ -103,7 +103,7 @@ def score_dps(stats: dict, fight_avg: dict) -> float:
     death_score = max(0, 10 - (stats["deaths"] / max(avg_deaths, 0.5)) * 5)
     assist_score = min(10, (stats["assists"] / max(fight_avg.get("assists", 1), 0.5)) * 5)
 
-    return min(10.0, (damage_score * 0.50 + kill_score * 0.60 + death_score * 0.20 + assist_score * 0.15))
+    return min(10.0, (damage_score * 0.60 + kill_score * 0.30 + death_score * 0.20 + assist_score * 0.20))
 
 
 ROLE_SCORERS = {
@@ -129,10 +129,12 @@ def auto_score_performance(role: str, stats: dict, fight_avg: dict) -> float:
 def get_k_factor(games_played: int) -> int:
     """Higher K for new players, lower for established ones."""
     if games_played < 10:
-        return 48
-    if games_played < 30:
-        return 32
-    return 24
+        return 36  # Alta (calibración)
+    if games_played < 25:
+        return 28  # Media
+    if games_played < 50:
+        return 20  # Baja
+    return 16  # Muy baja (estable)
 
 
 def calculate_elo_change(
@@ -151,7 +153,7 @@ def calculate_elo_change(
     The K-factor scales the magnitude.
     """
     k = get_k_factor(games_played)
-    # Map 0-10 to -1..+1: score 5 = 0, score 10 = +1, score 0 = -1
-    normalized = (performance_score - 5.0) / 5.0
+    # Nuevo: score 0 = 0 cambio, score > 0 = positivo, score < 0 = negativo
+    normalized = performance_score / 10.0
     change = k * normalized
     return round(change)

@@ -55,7 +55,7 @@ export default function Leaderboard() {
                   <th>Rango</th>
                   <th>Elo</th>
                   <th>Peak</th>
-                  <th>Batallas</th>
+                  <th>Combates</th>
                 </tr>
               </thead>
               <tbody className="fade-in-rows">
