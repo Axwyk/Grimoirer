@@ -12,7 +12,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <h1>ELO ALBION</h1>
+        <h1>GRIMOIRE</h1>
         <span>ZvZ Roaming Rankings</span>
       </div>
       <nav>

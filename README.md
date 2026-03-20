@@ -1,4 +1,4 @@
-# elo-albion
+# Grimoire
 
 Sistema de ranking ELO para batallas ZvZ de Albion Online. Rastrea el rendimiento de jugadores por roles (DPS, Healer, Tank, Support), calcula puntuaciones normalizadas por batalla y asigna ELO basado en contribución individual.
 
@@ -220,7 +220,7 @@ La API pública de Albion Online **no proporciona** datos de daño recibido ni C
 ## Estructura del Proyecto
 
 ```
-elo-albion/
+grimoire/
 ├── backend/          # Configuración Django (settings, urls, wsgi)
 ├── events/           # Recolección y almacenamiento de eventos de la API
 ├── battles/          # Agrupación de batallas, cálculo de stats
