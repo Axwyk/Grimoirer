@@ -340,11 +340,13 @@ def calculate_battle_stats(battle):
     # TANK:    Assists × 800 + Daño × 0.12  + Kills × 600   - Deaths × 500
     # SUPPORT: Assists × 800 + Heal × 0.18  + Daño × 0.08 + Kills × 600  - Deaths × 500
     for s in stats.values():
+        # Si el arma es shapeshifter, nunca forzar a healer
+        is_shapeshifter = s['role'] == ROLE_SUPPORT and s['weapon'] and 'SHAPESHIFTER' in s['weapon'].upper()
         is_healer = (
             s['role'] == ROLE_HEALER
             or (s['healing_done'] > s['damage_done'] and s['healing_done'] > 0)
         )
-        if is_healer:
+        if is_healer and not is_shapeshifter:
             s['role'] = ROLE_HEALER
             s['raw_score'] = (
                 s['healing_done'] * 0.40

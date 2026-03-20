@@ -106,6 +106,10 @@ def get_role_from_weapon(weapon_type):
     for part in parts[2:]:
         weapon_keywords.add(part)
 
+    # Prioridad: SHAPESHIFTER siempre SUPPORT (match parcial)
+    for kw in weapon_keywords:
+        if any('SHAPESHIFTER' in kw_part for kw_part in weapon_keywords):
+            return ROLE_SUPPORT
     for kw in weapon_keywords:
         if kw in HEALER_WEAPONS:
             return ROLE_HEALER
