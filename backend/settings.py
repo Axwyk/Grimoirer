@@ -25,11 +25,7 @@ SECRET_KEY = 'django-insecure-40_mez!shzs_4x@%t-nnt!3%q0alcj1sbz6=v%tu3#$qe7rd#k
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    "grimoirer-git-master-axwyks-projects.vercel.app",
-    "grimoirer-aes1frbd0-axwyks-projects.vercel.app",
-    "grimoirer.vercel.app",
-]
+ALLOWED_HOSTS = ["*"]
 
 # Guild to track for ELO ranking (only members of this guild get rated)
 TRACKED_GUILD = 'GUARDIANES DEL ABISMO'
