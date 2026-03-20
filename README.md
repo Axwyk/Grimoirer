@@ -1,4 +1,4 @@
-# Grimoire
+# Grimoirer
 
 Sistema de ranking ELO para batallas ZvZ de Albion Online. Rastrea el rendimiento de jugadores por roles (DPS, Healer, Tank, Support), calcula puntuaciones normalizadas por batalla y asigna ELO basado en contribución individual.
 
@@ -172,9 +172,9 @@ Como el ELO inicial es 600, todos arrancan en **Plata 3**. Subir requiere rendim
 
 ## Ejemplo Práctico
 
-> **Jugador DPS:** QGatoQ — 17 batallas jugadas (K=30)
+> **Jugador DPS:** Axwyk — 17 batallas jugadas (K=30)
 >
-> En una batalla con 8 participantes, QGatoQ hizo 12,000 de daño, 3 asistencias, 1 kill y 0 muertes.
+> En una batalla con 8 participantes, Axwyk hizo 12,000 de daño, 3 asistencias, 1 kill y 0 muertes.
 >
 > 1. **Raw Score** = (12000 × 0.4) + (3 × 0.3) + (1 × 0.2) - (0 × 0.3) = 4801.1
 > 2. **Z-Score** = Supongamos que queda en z = +1.8 (muy por encima del promedio de esa batalla)
@@ -182,9 +182,9 @@ Como el ELO inicial es 600, todos arrancan en **Plata 3**. Subir requiere rendim
 >
 > Si su ELO anterior era 753, pasa a **771 ELO** (Plata 2).
 
-> **Jugador Healer:** ARZID — 6 batallas (K=40)
+> **Jugador Healer:** Axwyk — 6 batallas (K=40)
 >
-> En una batalla, ARZID hizo 8,000 de curación, 5 asistencias, 0 kills y 1 muerte.
+> En una batalla, Axwyk hizo 8,000 de curación, 5 asistencias, 0 kills y 1 muerte.
 >
 > 1. **Raw Score (healer)** = (8000 × 0.5) + (5 × 0.3) + (0 × 0.1) - (1 × 0.2) = 4001.3
 > 2. **Z-Score** = z = +1.5
@@ -220,7 +220,7 @@ La API pública de Albion Online **no proporciona** datos de daño recibido ni C
 ## Estructura del Proyecto
 
 ```
-grimoire/
+grimoirer/
 ├── backend/          # Configuración Django (settings, urls, wsgi)
 ├── events/           # Recolección y almacenamiento de eventos de la API
 ├── battles/          # Agrupación de batallas, cálculo de stats
